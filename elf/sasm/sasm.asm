@@ -95,8 +95,14 @@ line:
     cmp rax, 0x656E6A ; "jne"
     je jne_
     ; ret
-    cmp rax, 0x746572 ; "ret
+    cmp rax, 0x746572 ; "ret"
     je ret_
+    ; add
+    cmp rax, 0x646461 ; "add"
+    je add_
+    ; sub
+    cmp rax, 0x627573 ; "sub"
+    je sub_
     call popipos
     ; Two-character strings
     call pushipos
@@ -563,7 +569,7 @@ mov_:
   mov1:
     push rdi
     push rsi
-    mov rax, 0x8B48 ; REW.W + MOV opcode
+    mov rax, 0x8B48 ; REX.W + MOV opcode
     call write2
     ; Create ModRM Byte
     pop rax ; ModRM.rm
@@ -592,7 +598,7 @@ mov_:
     mov rax, 0xB8 ; MOV opcode
     add rax, rdi
     call write1
-    mov rdx, 4
+    mov rdx, 0x4
     call write
     pop rsi
     jmp skipcom
@@ -682,7 +688,7 @@ cmp_:
     pop rdi
     add rax, rdi
     call write1
-    mov rdx, 4
+    mov rdx, 0x4
     call write
     pop rsi
     jmp skipcom
@@ -690,3 +696,21 @@ ret_:
     mov rax, 0xC3
     call write1
     jmp skipcom
+addsub:
+    call readtwo ; Assumes rax == 0 for now
+    add rdi, rdi
+    add rdi, rdi
+    add rdi, rdi
+    mov rax, 0xC0
+    add rax, rdi
+    add rax, rsi
+    call write1
+    jmp skipcom
+add_:
+    mov rax, 0x0348 ; REX.W + ADD opcode
+    call write2
+    jmp addsub
+sub_:
+    mov rax, 0x2B48 ; REX.W + SUB opcode
+    call write2
+    jmp addsub
