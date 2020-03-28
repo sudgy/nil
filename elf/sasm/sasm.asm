@@ -53,6 +53,9 @@ line:
     call readn
     cmp rax, 0x63737973 ; "sysc"
     je syscall_
+    ; push
+    cmp rax, 0x68737570 ; "push"
+    je push_
     call popipos
     ; mov
     call pushipos
@@ -60,6 +63,9 @@ line:
     call readn
     cmp rax, 0x766F6D ; "mov"
     je mov_
+    ; pop
+    cmp rax, 0x706F70 ; "pop"
+    je pop_
     call popipos
     ; Nothing was found :(
 err:
@@ -283,3 +289,18 @@ mov_:
     call write
     pop rax
     jmp skipcom
+pushpop:
+    call skipspac
+    call readreg
+    add rax, rbx
+    push rax
+    mov rdx, 1
+    call write
+    pop rax
+    jmp skipcom
+push_:
+    mov rbx, 0x50
+    jmp pushpop
+pop_:
+    mov rbx, 0x58
+    jmp pushpop
