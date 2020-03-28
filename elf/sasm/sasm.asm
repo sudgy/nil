@@ -464,6 +464,65 @@ readhex:
     add rdx, rax
     jmp rdhexbeg
 
+; This will read two paramaters, such as in "cmp rax, 0x10" or "mov [rbx], rsp".
+; The destination register will be put into rdi, and the source register or
+; value will be put into rsi.  rax will be set to the following values to
+; specify what kinds of operands rdi and rsi are:
+;
+;   0: Both are direct registers.
+;   1: Source is indirect register, destination is direct register.
+;   2: Source is direct register, destination is indirect register.
+;   3: Source is immediate value, destination is direct register.
+;
+; Keep in mind that all of the instructions that call this may not check for all
+; of the values of rax, at least at the moment.
+readtwo:
+    call skipspac
+    call readchar ; Check for '['
+    cmp rax, 0x5B ; '['
+    je readtwo2
+    call iback
+    call readreg
+    push rax
+    call readchar ; For the ',', hope it's there.
+    call skipspac
+    call readchar ; Determine if it's a register or an immediate value
+    cmp rax, 0x30
+    je readtwo3
+    cmp rax, 0x5B ; '['
+    je readtwo1
+  readtwo0:
+    call iback
+    call readreg
+    mov rsi, rax
+    pop rdi
+    mov rax, 0x0
+    ret
+  readtwo1:
+    call readreg
+    mov rsi, rax
+    pop rdi
+    mov rax, 0x1
+    ret
+  readtwo2:
+    call readreg
+    push rax
+    call readchar ; For the '[', hope it's there.
+    call readchar ; For the ',', hope it's there.
+    call skipspac
+    call readreg
+    mov rsi, rax
+    pop rdi
+    mov rax, 0x2
+    ret
+  readtwo3:
+    call readchar ; Hope that the next character is 'x'
+    call readhex ; rdx now has the immediate value
+    mov rsi, rdx
+    pop rdi
+    mov rax, 0x3
+    ret
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ; SPECIFIC INSTRUCTIONS ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -477,95 +536,65 @@ syscall_:
     call write2
     jmp skipcom
 mov_:
-    call skipspac
-    call readchar ; See if there is a '['
-    cmp rax, 0x5B ; '['
-    je mov_reg1
-    call iback
-    call readreg
-    push rax
-    call readchar ; For the ',', hope it's there.
-    call skipspac
-    call readchar ; Determine if it's a register or an immediate value
-    cmp rax, 0x30
-    jne mov_reg
-  ; Command is mov (register), (immediate hex value)
-  mov_imm: ; label not used, but nice to have for ease of reading
-    call readchar ; Hope that the next character is 'x'
-    call readhex ; rdx now has the immediate value
-    pop rax
-    push rdx
-    mov rdx, 0xB8 ; MOV opcode
-    add rax, rdx
-    call write1
-    mov rdx, 4
-    call write
-    pop rdx
-    jmp skipcom
-  ; Command is mov (register), (direct or indirect register)
-  mov_reg:
-    cmp rax, 0x5B ; '['
-    je mov_reg2
-  ; Command is mov (register), (register)
-  mov_reg0: ; label not used, but nice to have for ease of reading
-    call iback
-    call readreg
-    push rax
+    call readtwo
+    cmp rax, 0x3
+    je mov3
+    cmp rax, 0x2
+    je mov2
+    cmp rax, 0x1
+    je mov1
+    ; Assume rax is 0
+  mov0:
+    push rdi
+    push rsi
     mov rax, 0x8B48 ; REW.W + MOV opcode
     call write2
     ; Create ModRM Byte
-    pop rdx ; ModRM.rm
-    pop rax ; ModRM.reg
-    add rax, rax
-    add rax, rax
-    add rax, rax
-    add rax, rdx
-    mov rdx, 0xC0
-    add rax, rdx
-    push rax
-    mov rdx, 1
-    call write
-    pop rax
+    pop rsi ; ModRM.rm
+    pop rdi ; ModRM.reg
+    add rdi, rdi
+    add rdi, rdi
+    add rdi, rdi
+    add rdi, rsi
+    mov rax, 0xC0
+    add rax, rdi
+    call write1
     jmp skipcom
-  ; Command is mov [register], (register)
-  mov_reg1:
-    ; We know the command, let's get this out of the way
+  mov1:
+    push rdi
+    push rsi
+    mov rax, 0x8B48 ; REW.W + MOV opcode
+    call write2
+    ; Create ModRM Byte
+    pop rax ; ModRM.rm
+    pop rdi ; ModRM.reg
+    add rdi, rdi
+    add rdi, rdi
+    add rdi, rdi
+    add rax, rdi
+    call write1
+    jmp skipcom
+  mov2:
+    push rdi
+    push rsi
     mov rax, 0x8948 ; REX.W + MOV opcode
     call write2
-    ; Read what registers we are using
-    call readreg
-    push rax
-    ; Hope it looks like this
-    call readchar ; ']'
-    call readchar ; ','
-    call skipspac
-    call readreg
-    ; Make ModRM byte
-    add rax, rax
-    add rax, rax
-    add rax, rax
-    pop rdx
-    add rax, rdx
-    push rax
-    mov rdx, 1
-    call write
-    pop rax
+    pop rsi ; ModRM.reg
+    pop rax ; ModRM.rm
+    add rsi, rsi
+    add rsi, rsi
+    add rsi, rsi
+    add rax, rsi
+    call write1
     jmp skipcom
-  ; Command is mov (register), [register]
-  mov_reg2:
-    ; We know the command, let's get this out of the way
-    mov rax, 0x8B48 ; REX.W + MOV opcode
-    call write2
-    call readreg
-    pop rdx
-    add rdx, rdx
-    add rdx, rdx
-    add rdx, rdx
-    add rax, rdx
-    push rax
-    mov rdx, 1
+  mov3:
+    push rsi
+    mov rax, 0xB8 ; MOV opcode
+    add rax, rdi
+    call write1
+    mov rdx, 4
     call write
-    pop rax
+    pop rsi
     jmp skipcom
 pushpop:
     call skipspac
@@ -625,46 +654,37 @@ call_:
     call write1
     jmp jmp_com
 cmp_:
-    call skipspac
-    call readreg
-    push rax
-    call readchar ; For the ',', hope it's there.
-    call skipspac
-    call readchar ; Determine if it's a register or an immediate value
-    cmp rax, 0x30
-    je cmp_imm
-  cmp_reg:
+    call readtwo
+    cmp rax, 0x3
+    je cmp3
+  cmp0:
+    push rdi
+    push rsi
     mov rax, 0x3B48 ; REX.W + CMP opcode
     call write2
-    ; Read second register
-    call iback
-    call readreg
-    pop rdx
+    pop rsi
+    pop rdi
     ; Make ModRM byte
-    add rdx, rdx
-    add rdx, rdx
-    add rdx, rdx
-    add rax, rdx
-    mov rcx, 0xC0
-    add rax, rcx
-    push rax
-    mov rdx, 0x1
-    call write
-    pop rax
+    add rdi, rdi
+    add rdi, rdi
+    add rdi, rdi
+    add rsi, rdi
+    mov rax, 0xC0
+    add rax, rsi
+    call write1
     jmp skipcom
-  cmp_imm:
+  cmp3:
+    push rsi
+    push rdi
     mov rax, 0x8148 ; REX.W + CMP opcode
     call write2
     mov rax, 0xF8 ; ModRM byte except for register
-    pop rdx
-    add rax, rdx
+    pop rdi
+    add rax, rdi
     call write1
-    call readchar ; For the 'x', hope it's there.
-    call readhex ; rdx now has the immediate value
-    push rdx
     mov rdx, 4
     call write
-    pop rdx
+    pop rsi
     jmp skipcom
 ret_:
     mov rax, 0xC3
