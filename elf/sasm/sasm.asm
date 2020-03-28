@@ -88,6 +88,9 @@ line:
     ; cmp
     cmp rax, 0x706D63 ; "cmp"
     je cmp_
+    ; jne
+    cmp rax, 0x656E6A ; "jne"
+    je jne_
     call popipos
     ; Two-character strings
     call pushipos
@@ -96,6 +99,9 @@ line:
     ; je
     cmp rax, 0x656A ; "je"
     je je_
+    ; jl
+    cmp rax, 0x6C6A ; "jl"
+    je jl_
     call popipos
     ; Nothing was found :(
 err:
@@ -598,6 +604,14 @@ jmp_:
     jmp jmp_com
 je_:
     mov rax, 0x840F
+    call write2
+    jmp jmp_com
+jne_:
+    mov rax, 0x850F
+    call write2
+    jmp jmp_com
+jl_:
+    mov rax, 0x8C0F
     call write2
     jmp jmp_com
 cmp_:
