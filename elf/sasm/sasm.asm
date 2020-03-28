@@ -23,7 +23,7 @@
 ;
 ; Because indirect addressing with rsp and rbp is more complicated, it doesn't
 ; work yet, which is sad because they're the ones you want to do it with the
-; most.  Mov them into another register first!
+; most.  Move them into another register first!
     pop rcx
     mov rdi, 0x1 ; In case we exit
     cmp rcx, 0x3
@@ -52,9 +52,15 @@
     mov rsi, 0x08000000
     mov rdx, 0x78
     syscall
+    ; Prepare the label list (see the label section for more details)
+    mov rax, 0x0
+    push rax ; First label entry
+    mov rbp, rsp
+    push rax ; First jump entry
     ; Start the assembling
 line:
     call skipspac
+    call lablchck
     ; syscall
     call pushipos
     mov rdx, 0x4 ; Can only cmp 32-bit values :(
@@ -74,11 +80,19 @@ line:
     ; pop
     cmp rax, 0x706F70 ; "pop"
     je pop_
+    ; jmp
+    cmp rax, 0x706D6A ; "jmp"
+    je jmp_
     call popipos
     ; Nothing was found :(
 err:
     mov rdi, 0x4
     jmp exit
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+; INPUT FILE UTILITIES ;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
 ; Will store the byte in rax
 readchar:
     mov rax, 0x0 ; sys_read
@@ -87,9 +101,8 @@ readchar:
     mov rsi, rsp
     mov rdx, 0x1
     syscall
-    mov rdi, 0x0 ; In case we exit
     cmp rax, 0x0
-    je exit
+    je cleanup
     ; Get value and check for special cases
     pop rax
     cmp rax, 0xA ; If newline
@@ -108,13 +121,17 @@ skipspac:
     je skipspac
     call iback
     ret
-; Push the current position of the input file on the stack
-pushipos:
+; Get the current position of the input file into rax
+getipos:
     mov rax, 0x8 ; sys_lseek
-    mov rdi, 0x3
+    mov rdi, 0x3 ; Input file
     mov rsi, 0x0 ; No offset, we're reading
     mov rdx, 0x1 ; SEEK_CUR
     syscall
+    ret
+; Push the current position of the input file on the stack
+pushipos:
+    call getipos
     pop rbx
     push rax
     push rbx
@@ -149,6 +166,11 @@ iback:
     sub rsi, rdx ; Set rsi to -1, rdx happens to be 1 already
     syscall
     ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+; OUTPUT FILE UTILITIES ;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ; Write to the output file.  It assumes that the data is on the top of the stack
 ; and that you have already set rdx.
 write:
@@ -159,6 +181,26 @@ write:
     syscall
     push rbx
     ret
+; Get the current position of the output file into rax
+getopos:
+    mov rax, 0x8 ; sys_lseek
+    mov rdi, 0x4 ; Output file
+    mov rsi, 0x0 ; No offset, we're reading
+    mov rdx, 0x1 ; SEEK_CUR
+    syscall
+    ret
+; Go to the position in rsi in the output file
+oseek:
+    mov rax, 0x8 ; sys_lseek
+    mov rdi, 0x4 ; Output file
+    mov rdx, 0x0 ; SEEK_SET
+    syscall
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+; MISCELANEOUS UTILITIES ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 exit:
     mov rax, 0x3C
     syscall
@@ -171,9 +213,154 @@ unreturn:
     pop rdx
     pop rax
     ret
+
+;;;;;;;;;;
+; LABELS ;
+;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Here is how the labels work.  First, rbp points to the following values:
+;
+; rbp -> Address of first label entry (8 bytes)
+;        Address of first jump entry (8 bytes)
+;
+; A label entry consists of the following:
+;
+;               Address of label in output file (8 bytes)
+;               Name of label (8 bytes, zero padded if needed)
+; pointed to -> Address of next label entry (8 bytes)
+;
+; A jump entry consists of the following:
+;
+;               Address after jump address in output file (8 bytes)
+;               Name of label (8 bytes, zero padded if needed)
+; pointed to -> Address of next jump entry (8 bytes)
+;
+; These are implemented as a linked list across the stack, because that is the
+; easiest to make at the moment.  This system should get improved in the future.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Check a line for a label
+lablchck:
+    call pushipos
+  lblcloop:
+    mov rdx, 0x1
+    call readn
+    cmp rax, 0xA ; Newline
+    je lblckend
+    cmp rax, 0x3B ; Semicolon
+    je lblckend
+    cmp rax, 0x3A ; Colon
+    je label
+    jmp lblcloop
+  lblckend:
+    call popipos
+    ret
+  label:
+    call getipos
+    mov rdx, 0x1
+    sub rax, rdx ; Get rid of the colon
+    pop rbx ; The value from pushipos
+    push rax
+    push rbx
+    call popipos
+    call getipos
+    pop rdx
+    ; Now the range of the label is [rax, rdx)
+    sub rdx, rax ; rdx is now the length, hope it's valid (<= 8)
+    call readn
+    push rax
+    mov rbx, rbp
+  findlabl:
+    mov rdx, [rbx]
+    cmp rdx, 0x0
+    je addlabel
+    mov rbx, rdx
+    jmp findlabl
+  addlabel:
+    call getopos
+    pop rcx ; The label name
+    push rax
+    push rcx
+    mov rax, 0x0
+    push rax
+    mov [rbx], rsp
+    jmp skipcom
+
+; Add a label found in a jump instruction or something to the output file to be
+; dealt with later.  The label name should be passed in rax.
+addjump:
+    push rax
+    ; First write the blank label really quickly.  It can be anything, so we
+    ; don't care.
+    mov rdx, 0x4
+    call write
+    ; Add a new jmp address
+    mov rbx, rbp
+    mov rdx, 0x8
+    sub rbx, rdx
+  addjumpl:
+    mov rax, [rbx]
+    cmp rax, 0x0
+    je addjumpe
+    mov rbx, [rbx]
+    jmp addjumpl
+  addjumpe:
+    call getopos
+    pop rcx ; The label name
+    push rax
+    push rcx
+    mov rax, 0x0
+    push rax
+    mov [rbx], rsp
+    jmp skipcom
+
+; Go through all jumps and set them correctly
+cleanup:
+    mov rbx, rbp
+    mov rdx, 0x8 ; This will be used to increment and decrement pointers a lot
+  cleanlop:
+    sub rbx, rdx
+    mov rdi, 0x0 ; In case we exit
+    mov rax, [rbx]
+    cmp rax, 0x0
+    je exit
+    mov rbx, [rbx]
+    add rbx, rdx
+    mov rsi, [rbx]
+    mov rcx, rbp
+  clnfndlb:
+    mov rcx, [rcx]
+    add rcx, rdx
+    mov rdi, [rcx]
+    cmp rsi, rdi
+    je foundlbl
+    sub rcx, rdx
+    jmp clnfndlb
+  foundlbl:
+    add rbx, rdx
+    add rcx, rdx
+    mov rsi, [rbx]
+    mov rdi, [rcx]
+    sub rdi, rsi
+    push rbx
+    push rdi
+    mov rax, 0x4 ; remember that the index saved in a jmp instruction is after
+                 ; the instruction
+    sub rsi, rax
+    call oseek
+    mov rdx, 0x4
+    call write
+    pop rdi
+    pop rbx
+    mov rdx, 0x8 ; This is also resetting it for the beginning
+    sub rbx, rdx
+    jmp cleanlop
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; INSTRUCTION READING HELPERS ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ; Read a register, storing it numerically in rax
 readreg:
     mov rdx, 0x3
@@ -235,9 +422,11 @@ readhex:
     ; Combine values
     add rdx, rax
     jmp rdhexbeg
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ; SPECIFIC INSTRUCTIONS ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
+
 syscall_:
     mov rdx, 0x3
     call readn
@@ -367,3 +556,35 @@ push_:
 pop_:
     mov rbx, 0x58
     jmp pushpop
+jmp_com:
+    call skipspac
+    call pushipos
+  jmp_coml:
+    mov rdx, 0x1
+    call readn
+    cmp rax, 0xA ; Newline
+    je jmp_come
+    cmp rax, 0x20 ; Space
+    je jmp_come
+    cmp rax, 0x3B ; Semicolon
+    je jmp_come
+    jmp jmp_coml
+  jmp_come:
+    call iback
+    call getipos
+    pop rbx
+    push rax
+    push rbx
+    call popipos
+    call getipos
+    pop rdx
+    sub rdx, rax
+    call readn
+    call addjump
+jmp_:
+    mov rax, 0xE9
+    push rax
+    mov rdx, 1
+    call write
+    pop rax
+    jmp jmp_com
