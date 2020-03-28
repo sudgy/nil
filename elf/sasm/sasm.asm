@@ -61,20 +61,22 @@
 line:
     call skipspac
     call lablchck
-    ; syscall
+    ; Four-character strings
     call pushipos
     mov rdx, 0x4 ; Can only cmp 32-bit values :(
     call readn
+    ; syscall
     cmp rax, 0x63737973 ; "sysc"
     je syscall_
     ; push
     cmp rax, 0x68737570 ; "push"
     je push_
     call popipos
-    ; mov
+    ; Three-character strings
     call pushipos
     mov rdx, 0x3
     call readn
+    ; mov
     cmp rax, 0x766F6D ; "mov"
     je mov_
     ; pop
@@ -83,6 +85,17 @@ line:
     ; jmp
     cmp rax, 0x706D6A ; "jmp"
     je jmp_
+    ; cmp
+    cmp rax, 0x706D63 ; "cmp"
+    je cmp_
+    call popipos
+    ; Two-character strings
+    call pushipos
+    mov rdx, 0x2
+    call readn
+    ; je
+    cmp rax, 0x656A ; "je"
+    je je_
     call popipos
     ; Nothing was found :(
 err:
@@ -180,6 +193,22 @@ write:
     mov rsi, rsp
     syscall
     push rbx
+    ret
+; Write one byte from rax.  This was common enough that I wanted a separate
+; subroutine.
+write1:
+    push rax
+    mov rdx, 0x1
+    call write
+    pop rax
+    ret
+; Write two bytes from rax.  This was common enough that I wanted a separate
+; subroutine.
+write2:
+    push rax
+    mov rdx, 0x2
+    call write
+    pop rax
     ret
 ; Get the current position of the output file into rax
 getopos:
@@ -433,10 +462,7 @@ syscall_:
     cmp rax, 0x6C6C61 ; "all"
     jne err
     mov rax, 0x050F ; syscall opcode
-    push rax
-    mov rdx, 2
-    call write
-    pop rax
+    call write2
     jmp skipcom
 mov_:
     call skipspac
@@ -459,10 +485,7 @@ mov_:
     push rdx
     mov rdx, 0xB8 ; MOV opcode
     add rax, rdx
-    push rax
-    mov rdx, 1
-    call write
-    pop rax
+    call write1
     mov rdx, 4
     call write
     pop rdx
@@ -477,10 +500,7 @@ mov_:
     call readreg
     push rax
     mov rax, 0x8B48 ; REW.W + MOV opcode
-    push rax
-    mov rdx, 2
-    call write
-    pop rax
+    call write2
     ; Create ModRM Byte
     pop rdx ; ModRM.rm
     pop rax ; ModRM.reg
@@ -499,10 +519,7 @@ mov_:
   mov_reg1:
     ; We know the command, let's get this out of the way
     mov rax, 0x8948 ; REX.W + MOV opcode
-    push rax
-    mov rdx, 2
-    call write
-    pop rax
+    call write2
     ; Read what registers we are using
     call readreg
     push rax
@@ -526,10 +543,7 @@ mov_:
   mov_reg2:
     ; We know the command, let's get this out of the way
     mov rax, 0x8B48 ; REX.W + MOV opcode
-    push rax
-    mov rdx, 2
-    call write
-    pop rax
+    call write2
     call readreg
     pop rdx
     add rdx, rdx
@@ -545,10 +559,7 @@ pushpop:
     call skipspac
     call readreg
     add rax, rbx
-    push rax
-    mov rdx, 1
-    call write
-    pop rax
+    call write1
     jmp skipcom
 push_:
     mov rbx, 0x50
@@ -583,8 +594,51 @@ jmp_com:
     call addjump
 jmp_:
     mov rax, 0xE9
+    call write1
+    jmp jmp_com
+je_:
+    mov rax, 0x840F
+    call write2
+    jmp jmp_com
+cmp_:
+    call skipspac
+    call readreg
     push rax
-    mov rdx, 1
+    call readchar ; For the ',', hope it's there.
+    call skipspac
+    call readchar ; Determine if it's a register or an immediate value
+    cmp rax, 0x30
+    je cmp_imm
+  cmp_reg:
+    mov rax, 0x3B48 ; REX.W + CMP opcode
+    call write2
+    ; Read second register
+    call iback
+    call readreg
+    pop rdx
+    ; Make ModRM byte
+    add rdx, rdx
+    add rdx, rdx
+    add rdx, rdx
+    add rax, rdx
+    mov rcx, 0xC0
+    add rax, rcx
+    push rax
+    mov rdx, 0x1
     call write
     pop rax
-    jmp jmp_com
+    jmp skipcom
+  cmp_imm:
+    mov rax, 0x8148 ; REX.W + CMP opcode
+    call write2
+    mov rax, 0xF8 ; ModRM byte except for register
+    pop rdx
+    add rax, rdx
+    call write1
+    call readchar ; For the 'x', hope it's there.
+    call readhex ; rdx now has the immediate value
+    push rdx
+    mov rdx, 4
+    call write
+    pop rdx
+    jmp skipcom
