@@ -71,6 +71,9 @@ line:
     ; push
     cmp rax, 0x68737570 ; "push"
     je push_
+    ; call
+    cmp rax, 0x6C6C6163 ; "call"
+    je call_
     call popipos
     ; Three-character strings
     call pushipos
@@ -91,6 +94,9 @@ line:
     ; jne
     cmp rax, 0x656E6A ; "jne"
     je jne_
+    ; ret
+    cmp rax, 0x746572 ; "ret
+    je ret_
     call popipos
     ; Two-character strings
     call pushipos
@@ -614,6 +620,10 @@ jl_:
     mov rax, 0x8C0F
     call write2
     jmp jmp_com
+call_:
+    mov rax, 0xE8
+    call write1
+    jmp jmp_com
 cmp_:
     call skipspac
     call readreg
@@ -655,4 +665,8 @@ cmp_:
     mov rdx, 4
     call write
     pop rdx
+    jmp skipcom
+ret_:
+    mov rax, 0xC3
+    call write1
     jmp skipcom
