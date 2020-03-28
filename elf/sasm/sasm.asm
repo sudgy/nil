@@ -2,13 +2,17 @@
 ; This version is so old that it can't even assemble itself.  It is not
 ; finished.  To make it easier to assemble itself, only the following commands
 ; should be used in this file to start with:
+;
 ;   syscall
 ;   mov (register), (immediate hex value)
 ;   mov (register), (register)
+;   mov (register), [register]
+;   mov [register], (register)
 ;   push (register)
 ;   pop (register)
 ;   jmp (label)
 ;   cmp (register), (immediate hex value)
+;   cmp (register), (register)
 ;   je (label)
 ;   jne (label)
 ;   jl (label)
@@ -16,6 +20,10 @@
 ;   ret
 ;   add (register, register)
 ;   sub (register, register)
+;
+; Because indirect addressing with rsp and rbp is more complicated, it doesn't
+; work yet, which is sad because they're the ones you want to do it with the
+; most.  Mov them into another register first!
     pop rcx
     mov rdi, 0x1 ; In case we exit
     cmp rcx, 0x3
@@ -243,6 +251,10 @@ syscall_:
     jmp skipcom
 mov_:
     call skipspac
+    call readchar ; See if there is a '['
+    cmp rax, 0x5B ; '['
+    je mov_reg1
+    call iback
     call readreg
     push rax
     call readchar ; For the ',', hope it's there.
@@ -250,7 +262,8 @@ mov_:
     call readchar ; Determine if it's a register or an immediate value
     cmp rax, 0x30
     jne mov_reg
-    ; Command is mov (register), (immediate hex value)
+  ; Command is mov (register), (immediate hex value)
+  mov_imm: ; label not used, but nice to have for ease of reading
     call readchar ; Hope that the next character is 'x'
     call readhex ; rdx now has the immediate value
     pop rax
@@ -265,8 +278,12 @@ mov_:
     call write
     pop rdx
     jmp skipcom
+  ; Command is mov (register), (direct or indirect register)
   mov_reg:
-    ; Command is mov (register), (register)
+    cmp rax, 0x5B ; '['
+    je mov_reg2
+  ; Command is mov (register), (register)
+  mov_reg0: ; label not used, but nice to have for ease of reading
     call iback
     call readreg
     push rax
@@ -283,6 +300,52 @@ mov_:
     add rax, rax
     add rax, rdx
     mov rdx, 0xC0
+    add rax, rdx
+    push rax
+    mov rdx, 1
+    call write
+    pop rax
+    jmp skipcom
+  ; Command is mov [register], (register)
+  mov_reg1:
+    ; We know the command, let's get this out of the way
+    mov rax, 0x8948 ; REX.W + MOV opcode
+    push rax
+    mov rdx, 2
+    call write
+    pop rax
+    ; Read what registers we are using
+    call readreg
+    push rax
+    ; Hope it looks like this
+    call readchar ; ']'
+    call readchar ; ','
+    call skipspac
+    call readreg
+    ; Make ModRM byte
+    add rax, rax
+    add rax, rax
+    add rax, rax
+    pop rdx
+    add rax, rdx
+    push rax
+    mov rdx, 1
+    call write
+    pop rax
+    jmp skipcom
+  ; Command is mov (register), [register]
+  mov_reg2:
+    ; We know the command, let's get this out of the way
+    mov rax, 0x8B48 ; REX.W + MOV opcode
+    push rax
+    mov rdx, 2
+    call write
+    pop rax
+    call readreg
+    pop rdx
+    add rdx, rdx
+    add rdx, rdx
+    add rdx, rdx
     add rax, rdx
     push rax
     mov rdx, 1
