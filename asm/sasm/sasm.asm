@@ -105,6 +105,12 @@ line:
     ; sub
     cmp rax, 0x627573 ; "sub"
     je sub_
+    ; shl
+    cmp rax, 0x6C6873 ; "shl"
+    je shl_
+    ; shr
+    cmp rax, 0x726873 ; "shr"
+    je shr_
     call popipos
     ; Two-character strings
     call pushipos
@@ -744,3 +750,26 @@ sub_:
     call write2
     mov rax, 0x5
     jmp addsub3
+shift:
+    push rax
+    mov rax, 0xC148 ; REX.W + SHL or SHR opcode
+    call write2
+    call readtwo ; Assume rax == 3
+    pop rax
+    push rsi
+    add rax, rax
+    add rax, rax
+    add rax, rax
+    add rax, 0xC0
+    add rax, rdi
+    call write1
+    mov rdx, 0x1
+    call write
+    pop rsi
+    jmp skipcom
+shl_:
+    mov rax, 0x4
+    jmp shift
+shr_:
+    mov rax, 0x5
+    jmp shift
