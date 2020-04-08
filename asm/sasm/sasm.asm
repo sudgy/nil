@@ -18,8 +18,10 @@
 ;   jl (label)
 ;   call (label)
 ;   ret
-;   add (register, register)
-;   sub (register, register)
+;   add (register), (register)
+;   add (register), (immediate hex value)
+;   sub (register), (register)
+;   sub (register), (immediate hex value)
 ;
 ; Because indirect addressing with rsp and rbp is more complicated, it doesn't
 ; work yet, which is sad because they're the ones you want to do it with the
@@ -194,7 +196,7 @@ iback:
     mov rdi, 0x3
     mov rdx, 0x1 ; SEEK_CUR
     mov rsi, 0x0
-    sub rsi, rdx ; Set rsi to -1, rdx happens to be 1 already
+    sub rsi, 0x1 ; Set rsi to -1
     syscall
     ret
 
@@ -305,8 +307,7 @@ lablchck:
     ret
   label:
     call getipos
-    mov rdx, 0x1
-    sub rax, rdx ; Get rid of the colon
+    sub rax, 0x1 ; Get rid of the colon
     pop rbx ; The value from pushipos
     push rax
     push rbx
@@ -344,8 +345,7 @@ addjump:
     call write
     ; Add a new jmp address
     mov rbx, rbp
-    mov rdx, 0x8
-    sub rbx, rdx
+    sub rbx, 0x8
   addjumpl:
     mov rax, [rbx]
     cmp rax, 0x0
@@ -365,43 +365,40 @@ addjump:
 ; Go through all jumps and set them correctly
 cleanup:
     mov rbx, rbp
-    mov rdx, 0x8 ; This will be used to increment and decrement pointers a lot
   cleanlop:
-    sub rbx, rdx
+    sub rbx, 0x8
     mov rdi, 0x0 ; In case we exit
     mov rax, [rbx]
     cmp rax, 0x0
     je exit
     mov rbx, [rbx]
-    add rbx, rdx
+    add rbx, 0x8
     mov rsi, [rbx]
     mov rcx, rbp
   clnfndlb:
     mov rcx, [rcx]
-    add rcx, rdx
+    add rcx, 0x8
     mov rdi, [rcx]
     cmp rsi, rdi
     je foundlbl
-    sub rcx, rdx
+    sub rcx, 0x8
     jmp clnfndlb
   foundlbl:
-    add rbx, rdx
-    add rcx, rdx
+    add rbx, 0x8
+    add rcx, 0x8
     mov rsi, [rbx]
     mov rdi, [rcx]
     sub rdi, rsi
     push rbx
     push rdi
-    mov rax, 0x4 ; remember that the index saved in a jmp instruction is after
+    sub rsi, 0x4 ; remember that the index saved in a jmp instruction is after
                  ; the instruction
-    sub rsi, rax
     call oseek
     mov rdx, 0x4
     call write
     pop rdi
     pop rbx
-    mov rdx, 0x8 ; This is also resetting it for the beginning
-    sub rbx, rdx
+    sub rbx, 0x8
     jmp cleanlop
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -454,12 +451,10 @@ readhex:
     je unreturn
     cmp rax, 0x3B ; semicolon
     je unreturn
-    mov rcx, 0x30 ; Convert ASCII digit to number
-    sub rax, rcx
+    sub rax, 0x30 ; Convert ASCII digit to number
     cmp rax, 0xA ; Check if the digit is a letter
     jl rdhexdig
-    mov rcx, 0x7 ; Convert ASCII Letter to number (already subtracted 0x30)
-    sub rax, rcx
+    sub rax, 0x7 ; Convert ASCII Letter to number (already subtracted 0x30)
   rdhexdig:
     ; Multiply rdx by 0x10
     add rdx, rdx
@@ -712,8 +707,7 @@ addsub3:
     add rax, rax
     add rax, rax
     add rax, rax
-    mov rbx, 0xC0
-    add rax, rbx
+    add rax, 0xC0
     add rax, rdi
     call write1
     mov rdx, 0x4
