@@ -57,13 +57,24 @@
     mov rsi, 0x08000000
     mov rdx, 0x78
     syscall
-    ; Prepare the label list (see the label section for more details)
+    ; Prepare the stack.  The label section has some stuff about how it uses the
+    ; stack, but there are other things here.  The first two elements of the
+    ; stack have to do with labels, and then the third element is what line
+    ; number we are on.
     mov rax, 0x0
     push rax ; First label entry
     mov rbp, rsp
     push rax ; First jump entry
+    push rax ; Line number
     ; Start the assembling
 line:
+    ; Increment line number
+    mov rax, rbp
+    sub rax, 0x10
+    mov rdx, [rax]
+    add rdx, 0x1
+    mov [rax], rdx
+
     call skipspac
     call lablchck
     ; Four-character strings
@@ -134,6 +145,19 @@ line:
     call popipos
     ; Nothing was found :(
 err:
+    ; Output line number
+    mov rax, rbp
+    sub rax, 0x10
+    mov rax, [rax]
+    call numtostr
+    push rdi
+    mov rdx, 0x8
+    call printerr
+    mov rax, 0xA
+    push rax
+    mov rdx, 0x1
+    call printerr
+
     mov rdi, 0x4
     jmp exit
 
@@ -276,6 +300,37 @@ unreturn:
     call iback
     pop rdx
     pop rax
+    ret
+
+; Converts the number in rax to a decimal string stored into rdi.  Hope that the
+; string is small enough, because I have no idea what might happen if it isn't.
+numtostr:
+    mov rdi, 0x0 ; Result
+    mov rbx, 0xA ; Constant 10
+    mov rcx, 0x1 ; Keeps track of what digit we're on, gets multiplied by each
+                 ; digit
+  ntostrlp:
+    mov rdx, 0x0
+    div rbx
+    add rdx, 0x30 ; Convert remainder to ASCII
+    push rax
+    mov rax, rdx
+    mul rcx
+    add rdi, rax
+    pop rax
+    cmp rax, 0x0
+    je return
+    shl rcx, 0x8
+    jmp ntostrlp
+
+; This is the same as write but for stderr
+printerr:
+    pop rbx
+    mov rax, 0x1 ; sys_write
+    mov rdi, 0x2 ; stderr
+    mov rsi, rsp
+    syscall
+    push rbx
     ret
 
 ;;;;;;;;;;
