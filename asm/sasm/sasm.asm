@@ -1,7 +1,6 @@
 ; SASM: The sudgy assembler.
 ; This version is so old that it can barely assemble itself.  It is not
-; finished.  To make it easier to assemble itself, only the following commands
-; should be used in this file to start with:
+; finished.  Only the following commands are implemented:
 ;
 ;   syscall
 ;   mov (register), (immediate hex value)
@@ -24,6 +23,8 @@
 ;   sub (register), (immediate hex value)
 ;   shl (register), (immediate hex value)
 ;   shr (register), (immediate hex value)
+;   mul (register)
+;   div (register)
 ;
 ; Because indirect addressing with rsp and rbp is more complicated, it doesn't
 ; work yet, which is sad because they're the ones you want to do it with the
@@ -113,6 +114,12 @@ line:
     ; shr
     cmp rax, 0x726873 ; "shr"
     je shr_
+    ; mul
+    cmp rax, 0x6C756D ; "mul"
+    je mul_
+    ; div
+    cmp rax, 0x766964 ; "div"
+    je div_
     call popipos
     ; Two-character strings
     call pushipos
@@ -758,3 +765,21 @@ shl_:
 shr_:
     mov rax, 0x5
     jmp shift
+muldiv:
+    push rax
+    mov rax, 0xF748 ; REX.W + MUL or DIV opcode
+    call write2
+    call skipspac
+    call readreg
+    pop rbx
+    shl rbx, 0x3
+    add rax, rbx
+    add rax, 0xC0
+    call write1
+    jmp skipcom
+mul_:
+    mov rax, 0x4
+    jmp muldiv
+div_:
+    mov rax, 0x6
+    jmp muldiv
