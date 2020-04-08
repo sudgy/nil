@@ -22,6 +22,8 @@
 ;   add (register), (immediate hex value)
 ;   sub (register), (register)
 ;   sub (register), (immediate hex value)
+;   shl (register), (immediate hex value)
+;   shr (register), (immediate hex value)
 ;
 ; Because indirect addressing with rsp and rbp is more complicated, it doesn't
 ; work yet, which is sad because they're the ones you want to do it with the
@@ -463,10 +465,7 @@ readhex:
     sub rax, 0x7 ; Convert ASCII Letter to number (already subtracted 0x30)
   rdhexdig:
     ; Multiply rdx by 0x10
-    add rdx, rdx
-    add rdx, rdx
-    add rdx, rdx
-    add rdx, rdx
+    shl rdx, 0x4
     ; Combine values
     add rdx, rax
     jmp rdhexbeg
@@ -559,9 +558,7 @@ mov_:
     ; Create ModRM Byte
     pop rsi ; ModRM.rm
     pop rdi ; ModRM.reg
-    add rdi, rdi
-    add rdi, rdi
-    add rdi, rdi
+    shl rdi, 0x3
     add rdi, rsi
     mov rax, 0xC0
     add rax, rdi
@@ -575,9 +572,7 @@ mov_:
     ; Create ModRM Byte
     pop rax ; ModRM.rm
     pop rdi ; ModRM.reg
-    add rdi, rdi
-    add rdi, rdi
-    add rdi, rdi
+    shl rdi, 0x3
     add rax, rdi
     call write1
     jmp skipcom
@@ -588,9 +583,7 @@ mov_:
     call write2
     pop rsi ; ModRM.reg
     pop rax ; ModRM.rm
-    add rsi, rsi
-    add rsi, rsi
-    add rsi, rsi
+    shl rsi, 0x3
     add rax, rsi
     call write1
     jmp skipcom
@@ -672,9 +665,7 @@ cmp_:
     pop rsi
     pop rdi
     ; Make ModRM byte
-    add rdi, rdi
-    add rdi, rdi
-    add rdi, rdi
+    shl rdi, 0x3
     add rsi, rdi
     mov rax, 0xC0
     add rax, rsi
@@ -700,9 +691,7 @@ ret_:
 addsub0:
     pop rdi
     pop rsi
-    add rdi, rdi
-    add rdi, rdi
-    add rdi, rdi
+    shl rdi, 0x3
     mov rax, 0xC0
     add rax, rdi
     add rax, rsi
@@ -710,9 +699,7 @@ addsub0:
     jmp skipcom
 addsub3:
     pop rdi
-    add rax, rax
-    add rax, rax
-    add rax, rax
+    shl rax, 0x3
     add rax, 0xC0
     add rax, rdi
     call write1
@@ -757,9 +744,7 @@ shift:
     call readtwo ; Assume rax == 3
     pop rax
     push rsi
-    add rax, rax
-    add rax, rax
-    add rax, rax
+    shl rax, 0x3
     add rax, 0xC0
     add rax, rdi
     call write1
