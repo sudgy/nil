@@ -696,8 +696,9 @@ ret_:
     mov rax, 0xC3
     call write1
     jmp skipcom
-addsub:
-    call readtwo ; Assumes rax == 0 for now
+addsub0:
+    pop rdi
+    pop rsi
     add rdi, rdi
     add rdi, rdi
     add rdi, rdi
@@ -706,11 +707,46 @@ addsub:
     add rax, rsi
     call write1
     jmp skipcom
+addsub3:
+    pop rdi
+    add rax, rax
+    add rax, rax
+    add rax, rax
+    mov rbx, 0xC0
+    add rax, rbx
+    add rax, rdi
+    call write1
+    mov rdx, 0x4
+    call write
+    pop rsi
+    jmp skipcom
 add_:
+    call readtwo
+    push rsi
+    push rdi
+    cmp rax, 0x0
+    jne add3 ; Assume rax == 3
+  add0:
     mov rax, 0x0348 ; REX.W + ADD opcode
     call write2
-    jmp addsub
-sub_:
-    mov rax, 0x2B48 ; REX.W + SUB opcode
+    jmp addsub0
+  add3:
+    mov rax, 0x8148 ; REX.W + ADD opcode
     call write2
-    jmp addsub
+    mov rax, 0x0
+    jmp addsub3
+sub_:
+    call readtwo
+    push rsi
+    push rdi
+    cmp rax, 0x0
+    jne sub3 ; Assume rax == 3
+  sub0:
+    mov rax, 0x2B48 ; REX.W + ADD opcode
+    call write2
+    jmp addsub0
+  sub3:
+    mov rax, 0x8148 ; REW.W + SUB opcode
+    call write2
+    mov rax, 0x5
+    jmp addsub3
