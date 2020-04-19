@@ -3,14 +3,14 @@
 ; finished.  Only the following commands are implemented:
 ;
 ;   syscall
-;   mov (register), (immediate hex value)
+;   mov (register), (immediate hex value or string)
 ;   mov (register), (register)
 ;   mov (register), [register]
 ;   mov [register], (register)
 ;   push (register)
 ;   pop (register)
 ;   jmp (label)
-;   cmp (register), (immediate hex value)
+;   cmp (register), (immediate hex value or string)
 ;   cmp (register), (register)
 ;   je (label)
 ;   jne (label)
@@ -18,11 +18,11 @@
 ;   call (label)
 ;   ret
 ;   add (register), (register)
-;   add (register), (immediate hex value)
+;   add (register), (immediate hex value or string)
 ;   sub (register), (register)
-;   sub (register), (immediate hex value)
-;   shl (register), (immediate hex value)
-;   shr (register), (immediate hex value)
+;   sub (register), (immediate hex value or string)
+;   shl (register), (immediate hex value or string)
+;   shr (register), (immediate hex value or string)
 ;   mul (register)
 ;   div (register)
 ;
@@ -532,6 +532,31 @@ readhex:
     add rdx, rax
     jmp rdhexbeg
 
+; Read a string value into rdx.  Assumes that the first quote has already been
+; parsed.  Currently, if the string is not ended by a newline, space, or
+; semicolon, the behavior is undefined.  These strings can only be 8 bytes long.
+readstr:
+    call pushipos
+  rdstrbeg:
+    mov rdx, 0x1
+    call readn
+    cmp rax, 0x22 ; "
+    jne rdstrbeg
+    ; End of loop
+    call getipos
+    sub rax, 0x1 ; Get rid of the final quote
+    pop rbx
+    push rax
+    push rbx
+    call popipos
+    call getipos
+    pop rdx
+    ; Now the range of the string is [rax, rdx)
+    sub rdx, rax ; rdx is now the length, hope it's valid (<= 8)
+    call readn
+    mov rdx, rax
+    ret
+
 ; This will read two paramaters, such as in "cmp rax, 0x10" or "mov [rbx], rsp".
 ; The destination register will be put into rdi, and the source register or
 ; value will be put into rsi.  rax will be set to the following values to
@@ -559,6 +584,8 @@ readtwo:
     je readtwo3
     cmp rax, 0x5B ; '['
     je readtwo1
+    cmp rax, 0x22 ; '"'
+    je readtwo4
   readtwo0:
     call iback
     call readreg
@@ -586,6 +613,12 @@ readtwo:
   readtwo3:
     call readchar ; Hope that the next character is 'x'
     call readhex ; rdx now has the immediate value
+    mov rsi, rdx
+    pop rdi
+    mov rax, 0x3
+    ret
+  readtwo4: ; This should really be something like readtwo3-string
+    call readstr
     mov rsi, rdx
     pop rdi
     mov rax, 0x3
