@@ -82,13 +82,13 @@ line:
     mov rdx, 0x4 ; Can only cmp 32-bit values :(
     call readn
     ; syscall
-    cmp rax, 0x63737973 ; "sysc"
+    cmp rax, "sysc"
     je syscall_
     ; push
-    cmp rax, 0x68737570 ; "push"
+    cmp rax, "push"
     je push_
     ; call
-    cmp rax, 0x6C6C6163 ; "call"
+    cmp rax, "call"
     je call_
     call popipos
     ; Three-character strings
@@ -96,40 +96,40 @@ line:
     mov rdx, 0x3
     call readn
     ; mov
-    cmp rax, 0x766F6D ; "mov"
+    cmp rax, "mov"
     je mov_
     ; pop
-    cmp rax, 0x706F70 ; "pop"
+    cmp rax, "pop"
     je pop_
     ; jmp
-    cmp rax, 0x706D6A ; "jmp"
+    cmp rax, "jmp"
     je jmp_
     ; cmp
-    cmp rax, 0x706D63 ; "cmp"
+    cmp rax, "cmp"
     je cmp_
     ; jne
-    cmp rax, 0x656E6A ; "jne"
+    cmp rax, "jne"
     je jne_
     ; ret
-    cmp rax, 0x746572 ; "ret"
+    cmp rax, "ret"
     je ret_
     ; add
-    cmp rax, 0x646461 ; "add"
+    cmp rax, "add"
     je add_
     ; sub
-    cmp rax, 0x627573 ; "sub"
+    cmp rax, "sub"
     je sub_
     ; shl
-    cmp rax, 0x6C6873 ; "shl"
+    cmp rax, "shl"
     je shl_
     ; shr
-    cmp rax, 0x726873 ; "shr"
+    cmp rax, "shr"
     je shr_
     ; mul
-    cmp rax, 0x6C756D ; "mul"
+    cmp rax, "mul"
     je mul_
     ; div
-    cmp rax, 0x766964 ; "div"
+    cmp rax, "div"
     je div_
     call popipos
     ; Two-character strings
@@ -137,10 +137,10 @@ line:
     mov rdx, 0x2
     call readn
     ; je
-    cmp rax, 0x656A ; "je"
+    cmp rax, "je"
     je je_
     ; jl
-    cmp rax, 0x6C6A ; "jl"
+    cmp rax, "jl"
     je jl_
     call popipos
     ; Nothing was found :(
@@ -179,7 +179,7 @@ readchar:
     pop rax
     cmp rax, 0xA ; If newline
     je line ; Yes, there will eventually be a stack overflow, who cares
-    cmp rax, 0x3B ; If comment
+    cmp rax, ";"
     je skipcom
     ret
 ; Skips to the end of the line
@@ -189,7 +189,7 @@ skipcom:
 ; Skip until next non-space
 skipspac:
     call readchar
-    cmp rax, 0x20
+    cmp rax, " "
     je skipspac
     call iback
     ret
@@ -312,7 +312,7 @@ numtostr:
   ntostrlp:
     mov rdx, 0x0
     div rbx
-    add rdx, 0x30 ; Convert remainder to ASCII
+    add rdx, "0"
     push rax
     mov rax, rdx
     mul rcx
@@ -367,7 +367,7 @@ lablchck:
     call readn
     cmp rax, 0xA ; Newline
     je lblckend
-    cmp rax, 0x3B ; Semicolon
+    cmp rax, ";"
     je lblckend
     cmp rax, 0x3A ; Colon
     je label
@@ -480,28 +480,28 @@ readreg:
     mov rdx, 0x3
     call readn
     mov rdx, rax
-    cmp rdx, 0x786172 ; "rax"
+    cmp rdx, "rax"
       mov rax, 0x0
       je return
-    cmp rdx, 0x786372 ; "rcx"
+    cmp rdx, "rcx"
       mov rax, 0x1
       je return
-    cmp rdx, 0x786472 ; "rdx"
+    cmp rdx, "rdx"
       mov rax, 0x2
       je return
-    cmp rdx, 0x786272 ; "rbx"
+    cmp rdx, "rbx"
       mov rax, 0x3
       je return
-    cmp rdx, 0x707372 ; "rsp"
+    cmp rdx, "rsp"
       mov rax, 0x4
       je return
-    cmp rdx, 0x706272 ; "rbp"
+    cmp rdx, "rbp"
       mov rax, 0x5
       je return
-    cmp rdx, 0x697372 ; "rsi"
+    cmp rdx, "rsi"
       mov rax, 0x6
       je return
-    cmp rdx, 0x696472 ; "rdi"
+    cmp rdx, "rdi"
       mov rax, 0x7
       je return
     call err
@@ -517,11 +517,11 @@ readhex:
     pop rdx
     cmp rax, 0xA ; newline
     je unreturn
-    cmp rax, 0x20 ; space
+    cmp rax, " "
     je unreturn
-    cmp rax, 0x3B ; semicolon
+    cmp rax, ";"
     je unreturn
-    sub rax, 0x30 ; Convert ASCII digit to number
+    sub rax, "0" ; Convert ASCII digit to number
     cmp rax, 0xA ; Check if the digit is a letter
     jl rdhexdig
     sub rax, 0x7 ; Convert ASCII Letter to number (already subtracted 0x30)
@@ -572,7 +572,7 @@ readstr:
 readtwo:
     call skipspac
     call readchar ; Check for '['
-    cmp rax, 0x5B ; '['
+    cmp rax, "["
     je readtwo2
     call iback
     call readreg
@@ -580,9 +580,9 @@ readtwo:
     call readchar ; For the ',', hope it's there.
     call skipspac
     call readchar ; Determine if it's a register or an immediate value
-    cmp rax, 0x30
+    cmp rax, "0"
     je readtwo3
-    cmp rax, 0x5B ; '['
+    cmp rax, "["
     je readtwo1
     cmp rax, 0x22 ; '"'
     je readtwo4
@@ -631,7 +631,7 @@ readtwo:
 syscall_:
     mov rdx, 0x3
     call readn
-    cmp rax, 0x6C6C61 ; "all"
+    cmp rax, "all"
     jne err
     mov rax, 0x050F ; syscall opcode
     call write2
@@ -711,9 +711,9 @@ jmp_com:
     call readn
     cmp rax, 0xA ; Newline
     je jmp_come
-    cmp rax, 0x20 ; Space
+    cmp rax, " "
     je jmp_come
-    cmp rax, 0x3B ; Semicolon
+    cmp rax, ";"
     je jmp_come
     jmp jmp_coml
   jmp_come:
