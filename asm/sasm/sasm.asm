@@ -238,6 +238,41 @@ iback:
     sub rsi, 0x1 ; Set rsi to -1
     syscall
     ret
+; Read a single token into rax.  All tokens should be less than or equal to
+; eight characters.
+readtok:
+    call skipspac ; In case you just wanted the next token
+    call pushipos
+  readtokl:
+    mov rdx, 0x1
+    call readn
+    cmp rax, "0"
+    jl readtoke
+    cmp rax, 0x3A ; Right after '9'
+    jl readtokl
+    cmp rax, "A"
+    jl readtoke
+    cmp rax, "[" ; Right after 'Z'
+    jl readtokl
+    cmp rax, "_"
+    je readtokl
+    cmp rax, "a"
+    jl readtoke
+    cmp rax, "{" ; Right after 'z'
+    jl readtokl
+  ; Fallthrough
+  readtoke:
+    call iback
+    call getipos
+    pop rbx
+    push rax
+    push rbx
+    call popipos
+    call getipos
+    pop rdx
+    sub rdx, rax
+    call readn
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ; OUTPUT FILE UTILITIES ;
@@ -704,29 +739,7 @@ pop_:
     mov rbx, 0x58
     jmp pushpop
 jmp_com:
-    call skipspac
-    call pushipos
-  jmp_coml:
-    mov rdx, 0x1
-    call readn
-    cmp rax, 0xA ; Newline
-    je jmp_come
-    cmp rax, " "
-    je jmp_come
-    cmp rax, ";"
-    je jmp_come
-    jmp jmp_coml
-  jmp_come:
-    call iback
-    call getipos
-    pop rbx
-    push rax
-    push rbx
-    call popipos
-    call getipos
-    pop rdx
-    sub rdx, rax
-    call readn
+    call readtok
     call addjump
 jmp_:
     mov rax, 0xE9
