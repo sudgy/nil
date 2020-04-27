@@ -26,6 +26,7 @@
 ;   shr (register), (immediate hex value or string)
 ;   mul (register)
 ;   div (register)
+;   db (immediate hex value or string)
 ;
 ; Because indirect addressing with rsp and rbp is more complicated, it doesn't
 ; work yet, which is sad because they're the ones you want to do it with the
@@ -143,6 +144,9 @@ line:
     ; jl
     cmp rax, "jl"
     je jl_
+    ; db
+    cmp rax, "db"
+    je db_
     call popipos
     ; Nothing was found :(
 err:
@@ -923,3 +927,18 @@ mul_:
 div_:
     mov rax, 0x6
     jmp muldiv
+db_:
+    call skipspac
+    call readchar
+    cmp rax, 0x22 ; "
+    je dbloop
+    call readchar ; Hope it's x
+    call readhex
+    call write1 ; db should only dump one byte when it's a numerical value
+    jmp skipcom
+  dbloop:
+    call readchar
+    cmp rax, 0x22 ; "
+    je skipcom
+    call write1
+    jmp dbloop
