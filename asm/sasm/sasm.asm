@@ -7,6 +7,7 @@
 ;   mov (register), (register)
 ;   mov (register), [register]
 ;   mov [register], (register)
+;   mov (registor), (label)
 ;   push (register)
 ;   pop (register)
 ;   jmp (label)
@@ -386,6 +387,7 @@ printerr:
 ;
 ; A jump entry consists of the following:
 ;
+;               Bool, zero=relative, nonzero=absolute (8 bytes, 7 of padding)
 ;               Address after jump address in output file (8 bytes)
 ;               Name of label (8 bytes, zero padded if needed)
 ; pointed to -> Address of next jump entry (8 bytes)
@@ -441,8 +443,12 @@ lablchck:
     jmp skipcom
 
 ; Add a label found in a jump instruction or something to the output file to be
-; dealt with later.  The label name should be passed in rax.
+; dealt with later.  The label name should be passed in rax, and the boolean
+; describing if it is relative (zero) or absolute (nonzero) should be passed in
+; rbx.
 addjump:
+    push rbx ; This is actually this value's final resting place, so we don't
+             ; need it anymore
     push rax
     ; First write the blank label really quickly.  It can be anything, so we
     ; don't care.
@@ -489,11 +495,20 @@ cleanup:
     sub rcx, 0x8
     jmp clnfndlb
   foundlbl:
-    add rbx, 0x8
     add rcx, 0x8
-    mov rsi, [rbx]
     mov rdi, [rcx]
+    add rbx, 0x10
+    mov rsi, [rbx]
+    sub rbx, 0x8
+    cmp rsi, 0x0
+    mov rsi, [rbx]
+    je lblrel
+    add rdi, 0x08000000
+    jmp lblend
+  lblrel:
+    mov rsi, [rbx]
     sub rdi, rsi
+  lblend:
     push rbx
     push rdi
     sub rsi, 0x4 ; remember that the index saved in a jmp instruction is after
@@ -510,10 +525,10 @@ cleanup:
 ; INSTRUCTION READING HELPERS ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Read a register, storing it numerically in rax
+; Read a register, storing it numerically in rax.  If there is no register, rax
+; will contain the token that was there instead.
 readreg:
-    mov rdx, 0x3
-    call readn
+    call readtok
     mov rdx, rax
     cmp rdx, "rax"
       mov rax, 0x0
@@ -539,7 +554,8 @@ readreg:
     cmp rdx, "rdi"
       mov rax, 0x7
       je return
-    call err
+    mov rax, rdx
+    ret
 ; Read a hex value into rdx.  Assumes that "0x" has already been parsed.
 ; Currently, if the digits are not ended by a newline, space, or semicolon, the
 ; behavior is undefined.
@@ -601,6 +617,7 @@ readstr:
 ;   1: Source is indirect register, destination is direct register.
 ;   2: Source is direct register, destination is indirect register.
 ;   3: Source is immediate value, destination is direct register.
+;   4: Source is a label, destination is direct register.
 ;
 ; Keep in mind that all of the instructions that call this may not check for all
 ; of the values of rax, at least at the moment.
@@ -620,10 +637,13 @@ readtwo:
     cmp rax, "["
     je readtwo1
     cmp rax, 0x22 ; '"'
-    je readtwo4
-  readtwo0:
+    je readtw32
     call iback
     call readreg
+    cmp rax, 0x8
+    jl readtwo0
+    jmp readtwo4
+  readtwo0:
     mov rsi, rax
     pop rdi
     mov rax, 0x0
@@ -652,11 +672,16 @@ readtwo:
     pop rdi
     mov rax, 0x3
     ret
-  readtwo4: ; This should really be something like readtwo3-string
+  readtw32: ; This should really be something like readtwo3-string
     call readstr
     mov rsi, rdx
     pop rdi
     mov rax, 0x3
+    ret
+  readtwo4:
+    mov rsi, rax
+    pop rdi
+    mov rax, 0x4
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -673,6 +698,8 @@ syscall_:
     jmp skipcom
 mov_:
     call readtwo
+    cmp rax, 0x4
+    je mov4
     cmp rax, 0x3
     je mov3
     cmp rax, 0x2
@@ -726,9 +753,20 @@ mov_:
     call write
     pop rsi
     jmp skipcom
+  mov4:
+    push rsi
+    mov rax, 0xB8 ; MOV opcode
+    add rax, rdi
+    call write1
+    pop rax
+    mov rbx, 0x1
+    call addjump
+    jmp skipcom
 pushpop:
+    push rbx
     call skipspac
     call readreg
+    pop rbx
     add rax, rbx
     call write1
     jmp skipcom
@@ -740,6 +778,7 @@ pop_:
     jmp pushpop
 jmp_com:
     call readtok
+    mov rbx, 0x0
     call addjump
 jmp_:
     mov rax, 0xE9
