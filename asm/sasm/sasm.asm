@@ -34,10 +34,11 @@
     pop rcx
     mov rdi, 0x1 ; In case we exit
     cmp rcx, 0x3
-    jne exit
+    jl exit
     pop rdi ; Program name
     ; Open input file
     pop rdi ; Input file name
+    push rcx
     mov rax, 0x2 ; Open file syscall
     mov rsi, 0x2 ; R_RDWR
     syscall
@@ -45,7 +46,13 @@
     cmp rax, 0x3 ; Input file will always be file 3
     jne exit
     ; Open output file
-    pop rdi ; Output file name
+    pop rcx
+    sub rcx, 0x3
+    shl rcx, 0x3
+    mov rbx, rsp
+    add rbx, rcx
+    push rbx ; Save this for later, it's after the last address of input files
+    mov rdi, [rbx]
     mov rax, 0x2
     mov rsi, 0x42 ; O_CREAT | R_RDWR
     mov rdx, 0x1FD ; 775 Permissions
@@ -61,13 +68,18 @@
     syscall
     ; Prepare the stack.  The label section has some stuff about how it uses the
     ; stack, but there are other things here.  The first two elements of the
-    ; stack have to do with labels, and then the third element is what line
-    ; number we are on.
+    ; stack have to do with labels, the third element is what line number we are
+    ; on, the fourth is the address of the next file to open, and the fifth is
+    ; after the last address of the files to open.
+    pop rdx ; This is from earlier, it will be the address after the input files
     mov rax, 0x0
+    mov rbx, rsp
     push rax ; First label entry
     mov rbp, rsp
     push rax ; First jump entry
     push rax ; Line number
+    push rbx ; Next file
+    push rdx ; After next files
     ; Start the assembling
 line:
     ; Increment line number
@@ -170,6 +182,36 @@ err:
 ; INPUT FILE UTILITIES ;
 ;;;;;;;;;;;;;;;;;;;;;;;;
 
+; Called when one input file is finished
+endinp:
+    pop rax ; Cleanup from readchar
+    mov rbx, rbp
+    sub rbx, 0x18
+    mov rax, [rbx]
+    sub rbx, 0x8
+    mov rdx, [rbx]
+    cmp rax, rdx
+    je cleanup
+    add rbx, 0x8
+    push rbx
+    push rax
+    ; Close the old input file
+    mov rax, 0x3
+    mov rdi, 0x3
+    syscall
+    ; Open new input file
+    pop rax
+    pop rbx
+    mov rdi, [rax]
+    add rax, 0x8
+    mov [rbx], rax
+    mov rax, 0x2 ; sys_open
+    mov rsi, 0x2 ; R_RDWR
+    syscall
+    mov rdi, 0x2 ; In case we exit
+    cmp rax, 0x3
+    jne exit
+    ; fallthrough
 ; Will store the byte in rax
 readchar:
     mov rax, 0x0 ; sys_read
@@ -179,7 +221,7 @@ readchar:
     mov rdx, 0x1
     syscall
     cmp rax, 0x0
-    je cleanup
+    je endinp
     ; Get value and check for special cases
     pop rax
     cmp rax, 0xA ; If newline
