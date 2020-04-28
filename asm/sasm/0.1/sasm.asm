@@ -1030,6 +1030,7 @@ db_:
     je dbloop
     call readchar ; Hope it's x
     call readhex
+    mov rax, rdx
     call write1 ; db should only dump one byte when it's a numerical value
     jmp skipcom
   dbloop:
