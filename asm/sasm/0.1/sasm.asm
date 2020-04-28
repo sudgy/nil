@@ -571,11 +571,13 @@ cleanup:
 ; INSTRUCTION READING HELPERS ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Read a register, storing it numerically in rax.  If there is no register, rax
+; Read a register, storing it numerically in rax.  rcx will contain the size of
+; the register, in bytes (currently only 1 or 8).  If there is no register, rax
 ; will contain the token that was there instead.
 readreg:
     call readtok
     mov rdx, rax
+    mov rcx, 0x8
     cmp rdx, "rax"
       mov rax, 0x0
       je return
@@ -598,6 +600,31 @@ readreg:
       mov rax, 0x6
       je return
     cmp rdx, "rdi"
+      mov rax, 0x7
+      je return
+    mov rcx, 0x1
+    cmp rdx, "al"
+      mov rax, 0x0
+      je return
+    cmp rdx, "cl"
+      mov rax, 0x1
+      je return
+    cmp rdx, "dl"
+      mov rax, 0x2
+      je return
+    cmp rdx, "bl"
+      mov rax, 0x3
+      je return
+    cmp rdx, "sl"
+      mov rax, 0x4
+      je return
+    cmp rdx, "bl"
+      mov rax, 0x5
+      je return
+    cmp rdx, "sl"
+      mov rax, 0x6
+      je return
+    cmp rdx, "dl"
       mov rax, 0x7
       je return
     mov rax, rdx
@@ -667,6 +694,9 @@ readstr:
 ;
 ; Keep in mind that all of the instructions that call this may not check for all
 ; of the values of rax, at least at the moment.
+;
+; The size of the registers stored in rsi and rdi will be put into rcx and rdx,
+; respectively.
 readtwo:
     call skipspac
     call readchar ; Check for '['
@@ -675,6 +705,7 @@ readtwo:
     call iback
     call readreg
     push rax
+    push rcx
     call readchar ; For the ',', hope it's there.
     call skipspac
     call readchar ; Determine if it's a register or an immediate value
@@ -691,23 +722,27 @@ readtwo:
     jmp readtwo4
   readtwo0:
     mov rsi, rax
+    pop rdx
     pop rdi
     mov rax, 0x0
     ret
   readtwo1:
     call readreg
     mov rsi, rax
+    pop rdx
     pop rdi
     mov rax, 0x1
     ret
   readtwo2:
     call readreg
     push rax
-    call readchar ; For the '[', hope it's there.
+    push rcx
+    call readchar ; For the ']', hope it's there.
     call readchar ; For the ',', hope it's there.
     call skipspac
     call readreg
     mov rsi, rax
+    pop rdx
     pop rdi
     mov rax, 0x2
     ret
@@ -715,17 +750,20 @@ readtwo:
     call readchar ; Hope that the next character is 'x'
     call readhex ; rdx now has the immediate value
     mov rsi, rdx
+    pop rdx
     pop rdi
     mov rax, 0x3
     ret
   readtw32: ; This should really be something like readtwo3-string
     call readstr
     mov rsi, rdx
+    pop rdx
     pop rdi
     mov rax, 0x3
     ret
   readtwo4:
     mov rsi, rax
+    pop rdx
     pop rdi
     mov rax, 0x4
     ret
@@ -770,8 +808,16 @@ mov_:
   mov1:
     push rdi
     push rsi
+    cmp rdx, 0x1
+    je mov1byte
+  mov1quad:
     mov rax, 0x8B48 ; REX.W + MOV opcode
     call write2
+    jmp mov1_end
+  mov1byte:
+    mov rax, 0x8A
+    call write1
+  mov1_end:
     ; Create ModRM Byte
     pop rax ; ModRM.rm
     pop rdi ; ModRM.reg
@@ -782,8 +828,16 @@ mov_:
   mov2:
     push rdi
     push rsi
+    cmp rcx, 0x1
+    je mov2byte
+  mov2quad:
     mov rax, 0x8948 ; REX.W + MOV opcode
     call write2
+    jmp mov2_end
+  mov2byte:
+    mov rax, 0x88
+    call write1
+  mov2_end:
     pop rsi ; ModRM.reg
     pop rax ; ModRM.rm
     shl rsi, 0x3
