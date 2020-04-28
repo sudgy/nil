@@ -11,8 +11,27 @@ strcpy:
     jmp strcpylp
 ; source and destination in rsi and rdi, count in rcx
 strncpy:
+    mov rax, 0x0
+  strncpyl:
+    cmp rcx, 0x0
+    je return
+    mov al, [rsi]
+    mov [rdi], al
+    cmp rax, 0x0
+    je return
+    add rsi, 0x1
+    add rdi, 0x1
+    sub rcx, 0x1
+    jmp strncpyl
+; source and destination in rsi and rdi
 strcat:
-strncat:
+    mov rax, 0x0
+  strcatlp:
+    mov al, [rdi]
+    cmp rax, 0x0
+    je strcpylp
+    add rdi, 0x1
+    jmp strcatlp
 ; String in rsi
 strlen:
     mov rax, 0x0
@@ -36,8 +55,24 @@ strcmp:
     add rsi, 0x1
     add rdi, 0x1
     jmp strcmp
-strncmp:
+; source and destination in rsi and rdi, count in rcx
 memcpy:
+    cmp rcx, 0x0
+    je return
+    mov al, [rsi]
+    mov [rdi], al
+    add rsi, 0x1
+    add rdi, 0x1
+    sub rcx, 0x1
+    jmp memcpy
+; Source byte in in dl, destination in rdi, count in rcx
+memset:
+    cmp rcx, 0x0
+    je return
+    mov [rdi], dl
+    add rdi, 0x1
+    sub rcx, 0x1
+    jmp memset
 
 is_toke:
 is_iden:
