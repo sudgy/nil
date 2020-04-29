@@ -10,6 +10,7 @@ test_str:
     call t_str9
     call t_str10
     call t_str11
+    call t_str12
     ret
 
 t_stri1:
@@ -443,4 +444,126 @@ t_str11:
     call is_num
     mov rsi, t_str11k
     je testfail
+    ret
+
+t_str12a:
+    db "  tokens   and_punc[{] ==  "
+    db 0x0
+t_str12b:
+    db "strgettk at the token "
+t_str12c:
+    db "tokens"
+    db 0x0
+t_str12d:
+    db "strgettk at the token "
+t_str12e:
+    db "and_punc"
+    db 0x0
+t_str12f:
+    db "strgettk at the token "
+t_str12g:
+    db "["
+    db 0x0
+t_str12h:
+    db "strgettk at the token "
+t_str12i:
+    db "{"
+    db 0x0
+t_str12j:
+    db "strgettk at the token "
+t_str12k:
+    db "]"
+    db 0x0
+t_str12l:
+    db "strgettk at the first "
+t_str12m:
+    db "="
+    db 0x0
+t_str12n:
+    db "strgettk at the second "
+t_str12o:
+    db "="
+    db 0x0
+t_str12:
+    push rax
+    push rax
+    mov rdi, rsp
+    mov rsi, t_str12a
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12c
+    call strcmp
+    mov rsi, t_str12b
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12e
+    call strcmp
+    mov rsi, t_str12d
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12g
+    call strcmp
+    mov rsi, t_str12f
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12i
+    call strcmp
+    mov rsi, t_str12h
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12k
+    call strcmp
+    mov rsi, t_str12j
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12m
+    call strcmp
+    mov rsi, t_str12l
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    push rdi
+    push rsi
+    mov rsi, t_str12o
+    call strcmp
+    mov rsi, t_str12n
+    jne testfail
+    pop rsi
+    pop rdi
+
+    call strgettk
+    cmp rdi, 0x0
+    jne testfail
+
+    pop rax
+    pop rax
     ret

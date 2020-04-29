@@ -136,3 +136,63 @@ is_num:
     call is_dec
     je return
     jmp is_hex
+
+; Get a token from a string.  Pass in your string in rsi.  It will skip any
+; whitespace characters, then will read "a token" (more on the definition in a
+; moment) from rsi, leaving rsi pointing at the first character right after the
+; token (so this string can be passed to strgettk right away again).  The token
+; that it finds will be copied into the string in rdi, so make sure you pass in
+; a valid, large enough buffer for any token to go in.  If no token is found,
+; rdi is set to zero.  This will not clobber rsi or rdi, but can change them.
+;
+; A token is one of the following:
+;  - A sequence of alphanumeric characters and underscores
+;  - Any single character of punctuation.  Note that for the moment "==" will be
+;    parsed the same as "= =".  Same with "<<" or "+=" and such.
+; A token will never contain whitespace of any kind.
+strgettk:
+    mov rax, 0x0
+    mov al, [rsi]
+    cmp rax, 0x0
+    je strgette
+    call isspace
+    je strgetts
+    call isalnum
+    je strgettt
+    cmp rax, "_"
+    je strgettt
+  strgettp: ; Punctuation
+    mov rcx, 0x1
+    push rsi
+    push rdi
+    call strncpy
+    mov rax, 0x0
+    mov [rdi], al ; We are sneaky and know what strncpy leaves rdi as
+    pop rdi
+    pop rsi
+    add rsi, 0x1
+    ret
+  strgettt: ; Get a sequence of alphanumeric characters and underscores
+    mov rcx, rsi
+   strgettl:
+    add rcx, 0x1
+    mov al, [rcx]
+    call isalnum
+    je strgettl
+    cmp rax, "_"
+    je strgettl
+    push rcx
+    sub rcx, rsi
+    push rdi
+    call strncpy
+    mov rax, 0x0
+    mov [rdi], al ; We are sneaky and know what strncpy leaves rdi as
+    pop rdi
+    pop rsi
+    ret
+  strgetts: ; A space was found
+    add rsi, 0x1
+    jmp strgettk
+  strgette: ; The end was found
+    mov rdi, 0x0
+    ret
