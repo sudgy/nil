@@ -5,6 +5,16 @@ exit:
 ; This is used to have a conditional return, like "je return"
 return:
     ret
+; This is like "return true"
+rettrue:
+    cmp rax, rax
+    ret
+; This is like "return false" (it's actually kind of inefficient, but oh well)
+retfalse:
+    cmp rax, 0xFE
+    jne return
+    cmp rax, 0x0
+    ret
 ; Have your inputs in rdi and rsi, output will be in rax
 min:
     cmp rdi, rsi

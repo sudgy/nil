@@ -1,5 +1,6 @@
 call test_uti
 call test_str
+call test_cha
 mov rsi, test_end
 call println
 mov rdi, 0x0
